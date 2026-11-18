@@ -128,6 +128,7 @@ function slimTrack(t) {
     okladka: t.album?.images?.[0]?.url || '',
     okladkaMala: t.album?.images?.at(-1)?.url || '',
     data: t.album?.release_date || '',
+    typAlbumu: t.album?.album_type || '', // 'single' | 'album' | 'compilation'
     czas: t.duration_ms,
   };
 }

@@ -7,7 +7,6 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const RING = 339.3;
-const BLUR_START = 26;
 
 // ====================== Wspólne ======================
 let toastTimer;
@@ -123,6 +122,18 @@ function stopScan() {
 $('#btn-skanuj').addEventListener('click', startScan);
 $('#btn-nastepna').addEventListener('click', async () => { await endRound(); startScan(); });
 $('#btn-anuluj-skan').addEventListener('click', stopScan);
+$('#in-foto').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  stopScan();
+  try {
+    const text = await scanner.decodeFile(file);
+    if (text) handleCode(text);
+    else toast('Nie znalazłem kodu QR na zdjęciu. Zrób zdjęcie z bliska, ostro i bez odblasków.', true);
+  } catch (err) { showError(err); }
+});
+
 $('#form-kod').addEventListener('submit', (e) => {
   e.preventDefault();
   const v = $('#in-kod').value.trim();
@@ -373,13 +384,9 @@ $('.hints').addEventListener('click', async (e) => {
     }
     if (name === 'okladka') {
       if (!a.okladka) { out.textContent = 'brak okładki'; return; }
-      out.innerHTML = `<img alt="Rozmyta okładka" src="${esc(a.okladka)}" style="filter: blur(${BLUR_START}px)">`;
-      const img = $('img', out);
-      const secs = Math.max(20, round.limit ? round.limit / 1000 : 40);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        img.style.transition = `filter ${secs}s linear`;
-        img.style.filter = 'blur(0px)';
-      }));
+      out.textContent = '…';
+      const url = await songCover(round.info);
+      out.innerHTML = `<img alt="Okładka" src="${esc(url)}">`;
     }
     if (name === 'foto') {
       out.textContent = '…';
@@ -388,6 +395,33 @@ $('.hints').addEventListener('click', async (e) => {
     }
   } catch (err) { showError(err); }
 });
+
+// Okładka piosenki: Spotify nie ma okładek pojedynczych utworów, ale single to osobne wydania
+// z własną okładką. Szukamy singla z tym samym tytułem i wykonawcą (najwcześniejszego);
+// gdy go nie ma – zostaje okładka albumu, z którego gra utwór.
+const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+async function songCover(info) {
+  if (info.typAlbumu === 'single' || !info.wykonawcy?.length) return info.okladka;
+  const cache = store.get('cacheSingle', {});
+  if (info.id in cache) return cache[info.id] || info.okladka;
+  const title = cleanTitle(info.nazwa);
+  const artist = info.wykonawcy[0];
+  let url = '';
+  try {
+    const q = `track:${title.replace(/["']/g, ' ')} artist:${artist.replace(/["']/g, ' ')}`;
+    const hits = (await sp.search(q)).filter((t) => t.typAlbumu === 'single'
+      && norm(cleanTitle(t.nazwa)) === norm(title)
+      && t.wykonawcy.some((w) => norm(w) === norm(artist)));
+    hits.sort((x, y) => String(x.data).localeCompare(String(y.data)));
+    url = hits[0]?.okladka || '';
+  } catch { /* zostaje okładka albumu */ }
+  cache[info.id] = url;
+  const keys = Object.keys(cache);
+  if (keys.length > 800) delete cache[keys[0]];
+  store.set('cacheSingle', cache);
+  return url || info.okladka;
+}
 
 // ---------- Odpowiedź ----------
 $('#btn-odpowiedz').addEventListener('click', () => {

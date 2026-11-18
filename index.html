@@ -46,6 +46,8 @@
           <p class="hint-text" id="start-opis"></p>
         </div>
 
+        <label class="btn btn-ghost center" for="in-foto">Nie skanuje? Zrób zdjęcie kodu</label>
+
         <details class="card">
           <summary>Wpisz kod ręcznie</summary>
           <form id="form-kod" class="row">
@@ -59,8 +61,12 @@
         <video id="video" muted playsinline></video>
         <div class="scan-frame"></div>
         <p class="scan-tip">Nakieruj aparat na kod QR z karty</p>
-        <button id="btn-anuluj-skan" class="btn btn-ghost scan-cancel" type="button">Anuluj</button>
+        <div class="scan-actions">
+          <label class="btn" for="in-foto">Zrób zdjęcie kodu</label>
+          <button id="btn-anuluj-skan" class="btn btn-ghost" type="button">Anuluj</button>
+        </div>
       </div>
+      <input id="in-foto" type="file" accept="image/*" capture="environment" hidden>
 
       <div id="graj-runda" class="stack" hidden>
         <div class="round-meta">
@@ -89,7 +95,7 @@
           <button class="hint" type="button" data-hint="litWyk"><b>Wykonawca</b><small>pierwsza litera</small><span class="hint-out"></span></button>
           <button class="hint" type="button" data-hint="litTyt"><b>Tytuł</b><small>pierwsza litera</small><span class="hint-out"></span></button>
           <button class="hint" type="button" data-hint="zakres"><b>Zakres lat</b><span class="hint-out"></span></button>
-          <button class="hint hint-wide" type="button" data-hint="okladka"><b>Okładka</b><small>rozmyta, z czasem coraz wyraźniejsza</small><span class="hint-out"></span></button>
+          <button class="hint hint-wide" type="button" data-hint="okladka"><b>Okładka</b><small>okładka singla (albo albumu) ze Spotify</small><span class="hint-out"></span></button>
           <button class="hint hint-wide" type="button" data-hint="foto"><b>Zdjęcie wykonawcy</b><small>odkryj zdjęcie</small><span class="hint-out"></span></button>
         </div>
 

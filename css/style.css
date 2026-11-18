@@ -128,7 +128,9 @@ input:focus, select:focus { border-color: var(--accent); }
   box-shadow: 0 0 0 100vmax #0009; border: 3px solid var(--accent-3);
 }
 .scan-tip { position: absolute; top: calc(env(safe-area-inset-top) + 24px); left: 16px; right: 16px; text-align: center; font-weight: 600; margin: 0; }
-.scan-cancel { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 32px); left: 50%; transform: translateX(-50%); min-width: 160px; }
+.scan-actions { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 32px); left: 16px; right: 16px; display: flex; gap: 10px; justify-content: center; }
+.scan-actions .btn { flex: 1 1 0; max-width: 220px; text-align: center; }
+label.btn { display: block; }
 
 /* ---------- Runda ---------- */
 .round-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; flex-wrap: wrap; }
@@ -161,8 +163,8 @@ input:focus, select:focus { border-color: var(--accent); }
 .hint-wide { grid-column: span 2; }
 .hint-out { font-size: 1.5rem; font-weight: 800; color: var(--accent-2); }
 .hint-out:empty { display: none; }
-.hint-out img { display: block; width: 100%; max-height: 190px; object-fit: cover; border-radius: 10px; margin-top: 8px; }
-.blurimg { filter: blur(26px) saturate(1.2); }
+/* całe zdjęcie, kwadratowe, bez przycinania */
+.hint-out img { display: block; width: min(100%, 240px); aspect-ratio: 1; height: auto; object-fit: contain; background: var(--bg-2); border-radius: 10px; margin: 8px auto 0; }
 
 .answer {
   display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: center;
