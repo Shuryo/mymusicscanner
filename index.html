@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14111f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Hit Skaner</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="ikona.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="ikona-180.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="logo"><span class="logo-dot"></span>Hit Skaner</div>
+    <button id="chip-spotify" class="chip" type="button">Spotify…</button>
+  </header>
+
+  <main>
+    <!-- ================= GRAJ ================= -->
+    <section id="v-graj" class="view">
+      <div id="graj-start" class="stack">
+        <button id="btn-skanuj" class="scan-hero" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8h3v3H7zM14 8h3v3h-3zM7 14h3v3H7zM14 14h3v3h-3z"/></svg>
+          <span>Skanuj kartę</span>
+        </button>
+
+        <div class="card">
+          <div class="field-label">Czas słuchania</div>
+          <div class="seg" id="seg-limit" role="radiogroup">
+            <button type="button" data-v="15">15 s</button>
+            <button type="button" data-v="30">30 s</button>
+            <button type="button" data-v="60">60 s</button>
+            <button type="button" data-v="0">bez limitu</button>
+          </div>
+          <div class="field-label">Start utworu</div>
+          <div class="seg" id="seg-start" role="radiogroup">
+            <button type="button" data-v="poczatek">od początku</button>
+            <button type="button" data-v="intro">bez intro</button>
+            <button type="button" data-v="losowo">losowo</button>
+          </div>
+          <p class="hint-text" id="start-opis"></p>
+        </div>
+
+        <details class="card">
+          <summary>Wpisz kod ręcznie</summary>
+          <form id="form-kod" class="row">
+            <input id="in-kod" placeholder="np. aaae0002/82 albo link z karty" autocomplete="off">
+            <button class="btn" type="submit">Graj</button>
+          </form>
+        </details>
+      </div>
+
+      <div id="graj-skan" class="scanner" hidden>
+        <video id="video" muted playsinline></video>
+        <div class="scan-frame"></div>
+        <p class="scan-tip">Nakieruj aparat na kod QR z karty</p>
+        <button id="btn-anuluj-skan" class="btn btn-ghost scan-cancel" type="button">Anuluj</button>
+      </div>
+
+      <div id="graj-runda" class="stack" hidden>
+        <div class="round-meta">
+          <span id="r-talia"></span>
+          <span id="r-powtorka" class="badge" hidden></span>
+        </div>
+
+        <div class="player">
+          <button id="btn-play" class="play-btn" type="button" aria-label="Odtwórz / pauza">
+            <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-bg" cx="60" cy="60" r="54"/>
+              <circle id="ring" class="ring-fg" cx="60" cy="60" r="54"/>
+            </svg>
+            <span id="play-ico" class="play-ico"></span>
+          </button>
+          <div id="r-czas" class="time">–</div>
+          <div id="r-status" class="status"></div>
+        </div>
+
+        <div class="hints-head">
+          <span>Podpowiedzi</span>
+          <span class="badge" id="r-licznik">0 użytych</span>
+        </div>
+        <div class="hints">
+          <button class="hint" type="button" data-hint="plus5"><b>+5 s</b><small>jeszcze raz posłuchaj</small></button>
+          <button class="hint" type="button" data-hint="litWyk"><b>Wykonawca</b><small>pierwsza litera</small><span class="hint-out"></span></button>
+          <button class="hint" type="button" data-hint="litTyt"><b>Tytuł</b><small>pierwsza litera</small><span class="hint-out"></span></button>
+          <button class="hint" type="button" data-hint="zakres"><b>Zakres lat</b><span class="hint-out"></span></button>
+          <button class="hint hint-wide" type="button" data-hint="okladka"><b>Okładka</b><small>rozmyta, z czasem coraz wyraźniejsza</small><span class="hint-out"></span></button>
+          <button class="hint hint-wide" type="button" data-hint="foto"><b>Zdjęcie wykonawcy</b><small>odkryj zdjęcie</small><span class="hint-out"></span></button>
+        </div>
+
+        <button id="btn-odpowiedz" class="btn btn-big btn-outline" type="button">Pokaż odpowiedź</button>
+        <div id="odpowiedz" class="answer" hidden></div>
+
+        <button id="btn-nastepna" class="btn btn-big" type="button">Skanuj następną kartę</button>
+      </div>
+    </section>
+
+    <!-- ================= KARTY ================= -->
+    <section id="v-karty" class="view" hidden>
+      <div class="stack">
+        <div id="karty-brak-bazy" class="card" hidden>
+          <h2>Baza kart nie jest skonfigurowana</h2>
+          <p>Aby dodawać własne karty, podłącz Arkusz Google (instrukcja w README). Adres wpisz w <a href="#" data-goto="ustawienia">Ustawieniach</a>.</p>
+        </div>
+        <div id="karty-panel" class="stack">
+          <div class="row">
+            <button id="btn-dodaj" class="btn" type="button">+ Dodaj kartę</button>
+            <button id="btn-odswiez" class="btn btn-ghost" type="button">Odśwież</button>
+          </div>
+          <div class="row">
+            <select id="sel-talia" aria-label="Talia"></select>
+            <button id="btn-drukuj" class="btn btn-ghost" type="button">Drukuj talię</button>
+          </div>
+          <input id="in-szukaj" type="search" placeholder="Szukaj w kartach…" aria-label="Szukaj">
+          <ul id="lista-kart" class="list"></ul>
+        </div>
+        <div class="card muted-card">
+          <h3>Wbudowane talie Hitstera (PL)</h3>
+          <ul id="lista-talii" class="deck-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= HISTORIA ================= -->
+    <section id="v-historia" class="view" hidden>
+      <div class="stack">
+        <div class="row between">
+          <h2>Zagrane utwory</h2>
+          <button id="btn-wyczysc" class="btn btn-ghost" type="button">Wyczyść</button>
+        </div>
+        <ul id="lista-historia" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- ================= USTAWIENIA ================= -->
+    <section id="v-ustawienia" class="view" hidden>
+      <div class="stack">
+        <div class="card">
+          <h2>Spotify</h2>
+          <p id="sp-stan" class="hint-text"></p>
+          <div class="row">
+            <button id="btn-sp-login" class="btn" type="button">Połącz ze Spotify</button>
+            <button id="btn-sp-logout" class="btn btn-ghost" type="button">Rozłącz</button>
+          </div>
+          <div class="field-label">Urządzenie do odtwarzania</div>
+          <div class="row">
+            <select id="sel-urzadzenie" aria-label="Urządzenie"></select>
+            <button id="btn-urzadzenia" class="btn btn-ghost" type="button">Odśwież</button>
+          </div>
+          <p class="hint-text">Muzyka gra w aplikacji Spotify. Jeśli lista jest pusta, otwórz Spotify na telefonie i puść cokolwiek na chwilę.</p>
+        </div>
+
+        <div class="card">
+          <h2>Dodawanie kart</h2>
+          <label class="field-label" for="in-autor">Twoje imię (zapisywane przy kartach)</label>
+          <input id="in-autor" autocomplete="name">
+          <label class="field-label" for="in-haslo">Hasło do edycji bazy</label>
+          <input id="in-haslo" type="password" autocomplete="off">
+        </div>
+
+        <details class="card">
+          <summary>Zaawansowane</summary>
+          <label class="field-label" for="in-client">Spotify Client ID</label>
+          <input id="in-client" autocomplete="off" spellcheck="false">
+          <label class="field-label" for="in-arkusz">Adres bazy (Apps Script …/exec)</label>
+          <input id="in-arkusz" autocomplete="off" spellcheck="false">
+          <div class="field-label">Redirect URI do wpisania w Spotify Dashboard</div>
+          <code id="redirect-uri" class="code"></code>
+          <div class="row">
+            <button id="btn-zapisz-adv" class="btn" type="button">Zapisz</button>
+            <button id="btn-cache" class="btn btn-ghost" type="button">Wyczyść pamięć podręczną</button>
+          </div>
+        </details>
+        <p class="hint-text center">Dane talii Hitstera: oficjalna baza wydawcy (tylko do użytku z własnymi kartami).</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button type="button" data-tab="graj" class="on"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Graj</button>
+    <button type="button" data-tab="karty"><svg viewBox="0 0 24 24"><path d="M4 6h12v14H4zM8 2h12v14"/></svg>Karty</button>
+    <button type="button" data-tab="historia"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 3M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>Historia</button>
+    <button type="button" data-tab="ustawienia"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg>Ustawienia</button>
+  </nav>
+
+  <!-- ================= FORMULARZ KARTY ================= -->
+  <dialog id="dlg-karta">
+    <form id="form-karta" method="dialog" class="stack">
+      <h2 id="dlg-tytul">Nowa karta</h2>
+      <div class="row">
+        <div class="grow">
+          <label class="field-label" for="f-talia">Talia</label>
+          <input id="f-talia" list="dl-talie" required placeholder="np. moja-talia" autocomplete="off">
+          <datalist id="dl-talie"></datalist>
+        </div>
+        <div class="w-num">
+          <label class="field-label" for="f-numer">Nr</label>
+          <input id="f-numer" placeholder="auto" inputmode="numeric">
+        </div>
+      </div>
+
+      <div id="f-szukaj-box">
+        <label class="field-label" for="f-szukaj">Szukaj w Spotify</label>
+        <input id="f-szukaj" type="search" placeholder="wykonawca lub tytuł" autocomplete="off">
+        <ul id="f-wyniki" class="results"></ul>
+      </div>
+      <p id="f-szukaj-off" class="hint-text" hidden>Połącz się ze Spotify w Ustawieniach, żeby wyszukiwać. Możesz też wkleić link do utworu (Spotify → Udostępnij → Kopiuj link).</p>
+
+      <label class="field-label" for="f-spotify">Link lub ID utworu Spotify</label>
+      <input id="f-spotify" required autocomplete="off" spellcheck="false">
+      <div class="row">
+        <img id="f-okladka" class="thumb" alt="" hidden>
+        <div class="grow">
+          <label class="field-label" for="f-tytul">Tytuł</label>
+          <input id="f-tytul" required>
+        </div>
+      </div>
+      <label class="field-label" for="f-wykonawca">Wykonawca</label>
+      <input id="f-wykonawca" required>
+      <div class="row">
+        <div class="w-num">
+          <label class="field-label" for="f-rok">Rok</label>
+          <input id="f-rok" required inputmode="numeric" pattern="\d{4}">
+        </div>
+        <p id="f-rok-uwaga" class="hint-text grow"></p>
+      </div>
+      <label class="field-label" for="f-uwagi">Uwagi</label>
+      <input id="f-uwagi">
+      <p id="f-blad" class="error" hidden></p>
+      <div class="row between">
+        <button id="f-usun" class="btn btn-danger" type="button">Usuń</button>
+        <div class="row">
+          <button id="f-anuluj" class="btn btn-ghost" type="button">Anuluj</button>
+          <button id="f-zapisz" class="btn" type="submit">Zapisz</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
