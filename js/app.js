@@ -3,6 +3,12 @@ import * as sp from './spotify.js';
 import * as data from './data.js';
 import * as scanner from './scanner.js';
 
+// iPhone ignoruje „user-scalable=no”, więc blokujemy przybliżanie dwoma palcami ręcznie.
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+}
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

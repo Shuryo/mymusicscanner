@@ -17,6 +17,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* bez przybliżania po dwukrotnym dotknięciu (iPhone) */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   background: radial-gradient(1200px 600px at 80% -10%, #3a1d4f 0%, transparent 60%), var(--bg);
   background-attachment: fixed;
@@ -87,8 +89,9 @@ details.card[open] > summary { margin-bottom: 10px; }
 .error { color: var(--danger); margin: 0; }
 .code { display: block; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: .85rem; word-break: break-all; user-select: all; }
 
-input, select {
-  width: 100%; font: inherit; color: var(--text); background: var(--bg-2);
+input, select, textarea {
+  width: 100%; font: inherit; font-size: max(16px, 1em); /* < 16px = iPhone przybliża przy wpisywaniu */
+  color: var(--text); background: var(--bg-2);
   border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; outline: none;
 }
 input:focus, select:focus { border-color: var(--accent); }
