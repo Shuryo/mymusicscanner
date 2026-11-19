@@ -211,37 +211,51 @@ async function startRound(card) {
 }
 
 // Karta bez ID Spotify (np. z importu): znajdź utwór po tytule, wykonawcy i roku, zapamiętaj i zapisz w bazie.
-async function findTrackId(card) {
-  const cache = store.get('cacheZnalezione', {});
-  if (cache[card.klucz]) return cache[card.klucz];
-  const title = String(card.tytul || '').trim();
-  const artist = String(card.wykonawca || '').split(/,|\s+(?:feat\.?|ft\.?|&|x)\s+/i)[0].trim();
-  if (!title) throw new Error('Karta nie ma tytułu ani linku Spotify.');
-  const q = (s) => s.replace(/["']/g, ' ');
-  let hits = await sp.search(`track:${q(title)} artist:${q(artist)}`);
-  if (!hits.length) hits = await sp.search(`${title} ${artist}`);
+const mainArtist = (a) => String(a || '').split(/,|\s+(?:feat\.?|ft\.?|&|x|i)\s+/i)[0].trim();
+
+// Szuka utworu w Spotify po tytule, wykonawcy i roku. Zwraca najlepszy wynik albo null.
+async function searchTrack({ tytul, wykonawca, rok }) {
+  const title = String(tytul || '').trim();
+  const artist = mainArtist(wykonawca);
+  if (!title) return null;
+  const year = parseInt(rok, 10) || 0;
   const nt = norm(title), na = norm(artist);
-  const scored = hits.map((h, i) => {
+  const pick = (hits) => hits.map((h, i) => {
     const ht = norm(cleanTitle(h.nazwa));
-    const st = ht === nt ? 4 : (ht.startsWith(nt) || nt.startsWith(ht)) ? 2 : 0;
+    const st = ht === nt ? 4 : (ht.startsWith(nt) || nt.startsWith(ht) || ht.includes(nt)) ? 2 : 0;
     const sa = h.wykonawcy.some((w) => norm(w) === na) ? 4
       : h.wykonawcy.some((w) => norm(w).includes(na) || na.includes(norm(w))) ? 2 : 0;
     if (!st || !sa) return { h, s: -1 };
     let s = st + sa;
     if (h.typAlbumu === 'compilation') s -= 1;
     const y = yearOf(h.data);
-    if (card.rok && y && Math.abs(y - card.rok) <= 1) s += 2;
+    if (year && y && Math.abs(y - year) <= 1) s += 2;
     return { h, s: s - i * 0.01 };
-  }).sort((a, b) => b.s - a.s);
-  const best = scored[0];
-  if (!best || best.s < 0) throw new Error(`Nie znalazłem w Spotify: ${artist} – ${title}. Wklej link do utworu w zakładce Karty.`);
-  const id = best.h.id;
-  cache[card.klucz] = id;
+  }).filter((x) => x.s >= 0).sort((a, b) => b.s - a.s)[0]?.h || null;
+  const q = (s) => s.replace(/["']/g, ' ');
+  // 1) zapytanie z filtrami, 2) zwykłe zapytanie, 3) sam tytuł
+  return pick(await sp.search(`track:${q(title)} artist:${q(artist)}`))
+    || pick(await sp.search(`${title} ${artist}`))
+    || pick(await sp.search(title));
+}
+
+function rememberFound(klucz, id) {
+  const cache = store.get('cacheZnalezione', {});
+  cache[klucz] = id;
   const keys = Object.keys(cache);
   if (keys.length > 1500) keys.slice(0, keys.length - 1500).forEach((k) => delete cache[k]);
   store.set('cacheZnalezione', cache);
-  if (card.zrodlo === 'wlasna') data.setTrackId(card.talia, card.numer, id, best.h.okladka).catch(() => {});
-  return id;
+}
+
+async function findTrackId(card) {
+  const cache = store.get('cacheZnalezione', {});
+  if (cache[card.klucz]) return cache[card.klucz];
+  if (!card.tytul) throw new Error('Karta nie ma tytułu ani linku Spotify.');
+  const hit = await searchTrack(card);
+  if (!hit) throw new Error(`Nie znalazłem w Spotify: ${card.wykonawca} – ${card.tytul}. Wklej link do utworu w zakładce Karty.`);
+  rememberFound(card.klucz, hit.id);
+  if (card.zrodlo === 'wlasna') data.setTrackId(card.talia, card.numer, hit.id, hit.okladka).catch((e) => toast(e.message, true));
+  return hit.id;
 }
 
 function addHistory() {
@@ -554,7 +568,7 @@ function renderCardList() {
       ${c.okladka ? `<img class="thumb" src="${esc(c.okladka)}" alt="" loading="lazy">` : '<div class="thumb"></div>'}
       <div style="min-width:0">
         <div class="t1">${esc(c.wykonawca)} – ${esc(c.tytul)}</div>
-        <div class="t2">${esc(c.talia)} #${esc(c.numer)}${c.dodal ? ' · dodał(a): ' + esc(c.dodal) : ''}</div>
+        <div class="t2">${esc(c.talia)} #${esc(c.numer)}${c.dodal ? ' · dodał(a): ' + esc(c.dodal) : ''}${c.spotify ? '' : ' · <b>bez Spotify</b>'}</div>
       </div>
       <div class="yr">${esc(c.rok)}</div>
     </li>`).join('');
@@ -571,6 +585,57 @@ $('#btn-drukuj').addEventListener('click', () => {
   const d = $('#sel-talia').value;
   if (d) window.open('drukuj.html?talia=' + encodeURIComponent(d), '_blank');
 });
+// Wyszukuje w Spotify wszystkie karty bez ID (w wybranej talii albo we wszystkich) i zapisuje ID w bazie.
+let finding = false;
+$('#btn-znajdz').addEventListener('click', async () => {
+  if (finding) { finding = false; return; } // drugi klik = zatrzymaj
+  if (!sp.isLoggedIn()) { toast('Najpierw połącz się ze Spotify.', true); goto('ustawienia'); return; }
+  const deck = $('#sel-talia').value;
+  const todo = data.customCards().filter((c) => !c.spotify && c.tytul
+    && (deck && deck !== '__hitster' ? c.talia === deck : !data.isHitsterDeck(c.talia)));
+  const info = $('#znajdz-info');
+  info.hidden = false;
+  if (!todo.length) { info.textContent = 'Wszystkie karty mają już utwór w Spotify.'; return; }
+  finding = true;
+  const btn = $('#btn-znajdz');
+  btn.textContent = 'Zatrzymaj wyszukiwanie';
+  const found = [], missing = [];
+  let saveErr = null;
+  const flush = async () => {
+    const part = found.splice(0);
+    if (part.length) await data.setTrackIds(part).catch((e) => { saveErr = e; });
+  };
+  try {
+    for (let i = 0; i < todo.length && finding; i++) {
+      const c = todo[i];
+      info.textContent = `Szukam ${i + 1} z ${todo.length}: ${c.wykonawca} – ${c.tytul}…`;
+      try {
+        const hit = await searchTrack(c);
+        if (hit) {
+          found.push({ talia: c.talia, numer: c.numer, spotify: hit.id, okladka: hit.okladka });
+          rememberFound(data.key(c.talia, c.numer), hit.id);
+        } else missing.push(c);
+      } catch (e) {
+        if (e.status === 401 || e.status === 403) throw e;
+        missing.push(c);
+      }
+      if (found.length >= 25) await flush();
+    }
+    await flush();
+  } catch (e) {
+    await flush();
+    showError(e);
+  } finally {
+    finding = false;
+    btn.textContent = 'Znajdź utwory w Spotify';
+    const ok = todo.length - missing.length;
+    info.innerHTML = `Znaleziono ${ok} z ${todo.length}.`
+      + (saveErr ? ` <b>${esc(saveErr.message)}</b>` : '')
+      + (missing.length ? `<br>Nie znaleziono (kliknij kartę i wklej link ze Spotify):<br>${missing.map((c) => `${esc(c.talia)} #${esc(c.numer)}: ${esc(c.wykonawca)} – ${esc(c.tytul)}`).join('<br>')}` : '');
+    renderCardList();
+  }
+});
+
 $('#lista-kart').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-talia]');
   if (!li) return;

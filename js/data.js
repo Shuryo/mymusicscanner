@@ -52,18 +52,25 @@ async function sheetPost(payload) {
 export const saveCard = (karta, oryginal) => sheetPost({ akcja: 'zapisz', karta, oryginal });
 export const deleteCard = (talia, numer) => sheetPost({ akcja: 'usun', talia, numer });
 
-// Zapisuje w bazie ID utworu znalezione automatycznie (bez hasła; tylko gdy pole było puste).
-export async function setTrackId(talia, numer, spotify, okladka) {
-  const c = sheetCards.find((x) => key(x.talia, x.numer) === key(talia, numer));
-  if (c) { c.spotify = spotify; if (!c.okladka) c.okladka = okladka || ''; store.set('cacheArkusz', sheetCards); }
+// Zapisuje w bazie ID utworów znalezione automatycznie (bez hasła; tylko w puste pola).
+// lista: [{ talia, numer, spotify, okladka }]
+export async function setTrackIds(lista) {
+  for (const x of lista) {
+    const c = sheetCards.find((k) => key(k.talia, k.numer) === key(x.talia, x.numer));
+    if (c) { c.spotify = x.spotify; if (!c.okladka) c.okladka = x.okladka || ''; }
+  }
+  store.set('cacheArkusz', sheetCards);
   const url = store.sheetUrl();
-  if (!url) return;
-  await fetch(url, {
+  if (!url || !lista.length) return;
+  const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ akcja: 'ustawId', talia, numer, spotify, okladka }),
+    body: JSON.stringify({ akcja: 'ustawIdy', lista }),
   });
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error('Nie zapisano ID w bazie: ' + (j.blad || r.status) + '. Wgraj nowy Code.gs (Nowa wersja wdrożenia).');
 }
+export const setTrackId = (talia, numer, spotify, okladka) => setTrackIds([{ talia, numer, spotify, okladka }]);
 
 export function customDecks() {
   const m = new Map();
