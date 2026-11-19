@@ -52,6 +52,19 @@ async function sheetPost(payload) {
 export const saveCard = (karta, oryginal) => sheetPost({ akcja: 'zapisz', karta, oryginal });
 export const deleteCard = (talia, numer) => sheetPost({ akcja: 'usun', talia, numer });
 
+// Zapisuje w bazie ID utworu znalezione automatycznie (bez hasła; tylko gdy pole było puste).
+export async function setTrackId(talia, numer, spotify, okladka) {
+  const c = sheetCards.find((x) => key(x.talia, x.numer) === key(talia, numer));
+  if (c) { c.spotify = spotify; if (!c.okladka) c.okladka = okladka || ''; store.set('cacheArkusz', sheetCards); }
+  const url = store.sheetUrl();
+  if (!url) return;
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ akcja: 'ustawId', talia, numer, spotify, okladka }),
+  });
+}
+
 export function customDecks() {
   const m = new Map();
   for (const c of sheetCards) {

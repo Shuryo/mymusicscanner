@@ -192,6 +192,10 @@ async function startRound(card) {
   setStatus('Ładuję utwór…');
   const myId = round.id;
   try {
+    if (!card.spotify) {
+      setStatus('Szukam utworu w Spotify…');
+      card.spotify = await findTrackId(card);
+    }
     const info = await sp.track(card.spotify);
     if (!round || round.id !== myId) return;
     round.info = info;
@@ -204,6 +208,40 @@ async function startRound(card) {
     setStatus('Nie udało się odtworzyć – dotknij, aby spróbować ponownie.');
     showError(e);
   }
+}
+
+// Karta bez ID Spotify (np. z importu): znajdź utwór po tytule, wykonawcy i roku, zapamiętaj i zapisz w bazie.
+async function findTrackId(card) {
+  const cache = store.get('cacheZnalezione', {});
+  if (cache[card.klucz]) return cache[card.klucz];
+  const title = String(card.tytul || '').trim();
+  const artist = String(card.wykonawca || '').split(/,|\s+(?:feat\.?|ft\.?|&|x)\s+/i)[0].trim();
+  if (!title) throw new Error('Karta nie ma tytułu ani linku Spotify.');
+  const q = (s) => s.replace(/["']/g, ' ');
+  let hits = await sp.search(`track:${q(title)} artist:${q(artist)}`);
+  if (!hits.length) hits = await sp.search(`${title} ${artist}`);
+  const nt = norm(title), na = norm(artist);
+  const scored = hits.map((h, i) => {
+    const ht = norm(cleanTitle(h.nazwa));
+    const st = ht === nt ? 4 : (ht.startsWith(nt) || nt.startsWith(ht)) ? 2 : 0;
+    const sa = h.wykonawcy.some((w) => norm(w) === na) ? 4
+      : h.wykonawcy.some((w) => norm(w).includes(na) || na.includes(norm(w))) ? 2 : 0;
+    if (!st || !sa) return { h, s: -1 };
+    let s = st + sa;
+    if (h.typAlbumu === 'compilation') s -= 1;
+    const y = yearOf(h.data);
+    if (card.rok && y && Math.abs(y - card.rok) <= 1) s += 2;
+    return { h, s: s - i * 0.01 };
+  }).sort((a, b) => b.s - a.s);
+  const best = scored[0];
+  if (!best || best.s < 0) throw new Error(`Nie znalazłem w Spotify: ${artist} – ${title}. Wklej link do utworu w zakładce Karty.`);
+  const id = best.h.id;
+  cache[card.klucz] = id;
+  const keys = Object.keys(cache);
+  if (keys.length > 1500) keys.slice(0, keys.length - 1500).forEach((k) => delete cache[k]);
+  store.set('cacheZnalezione', cache);
+  if (card.zrodlo === 'wlasna') data.setTrackId(card.talia, card.numer, id, best.h.okladka).catch(() => {});
+  return id;
 }
 
 function addHistory() {
