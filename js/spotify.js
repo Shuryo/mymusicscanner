@@ -150,8 +150,21 @@ export async function artistImage(id) {
   return artistCache[id];
 }
 
+// market=from_token wymaga dodatkowego uprawnienia (Spotify zwraca „Insufficient client scope”),
+// więc podajemy kraj wprost; gdyby i to zostało odrzucone – szukamy bez rynku.
+let searchMarket = 'PL';
 export async function search(q) {
-  const j = await api('/search?' + new URLSearchParams({ q, type: 'track', limit: '10', market: 'from_token' }));
+  const params = { q, type: 'track', limit: '10' };
+  if (searchMarket) params.market = searchMarket;
+  let j;
+  try {
+    j = await api('/search?' + new URLSearchParams(params));
+  } catch (e) {
+    if (e.status !== 403 || !searchMarket) throw e;
+    searchMarket = '';
+    delete params.market;
+    j = await api('/search?' + new URLSearchParams(params));
+  }
   return (j?.tracks?.items || []).filter(Boolean).map(slimTrack);
 }
 

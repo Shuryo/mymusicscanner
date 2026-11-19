@@ -571,6 +571,7 @@ function renderCardList() {
         <div class="t2">${esc(c.talia)} #${esc(c.numer)}${c.dodal ? ' · dodał(a): ' + esc(c.dodal) : ''}${c.spotify ? '' : ' · <b>bez Spotify</b>'}</div>
       </div>
       <div class="yr">${esc(c.rok)}</div>
+      <button type="button" class="play-mini${previewKey === data.key(c.talia, c.numer) ? ' on' : ''}" data-play aria-label="Odsłuchaj">${previewKey === data.key(c.talia, c.numer) ? '❚❚' : '▶'}</button>
     </li>`).join('');
 }
 
@@ -636,9 +637,42 @@ $('#btn-znajdz').addEventListener('click', async () => {
   }
 });
 
+// Odsłuch karty z listy: gra utwór od początku w Spotify, drugi klik zatrzymuje.
+let previewKey = null;
+async function togglePreview(c, btn) {
+  const k = data.key(c.talia, c.numer);
+  if (previewKey === k) {
+    previewKey = null;
+    renderCardList();
+    sp.pause().catch(() => {});
+    return;
+  }
+  if (!sp.isLoggedIn()) { toast('Najpierw połącz się ze Spotify.', true); goto('ustawienia'); return; }
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    if (round) await endRound(true);
+    const id = c.spotify || await findTrackId({
+      ...c, klucz: k, zrodlo: data.isHitsterDeck(c.talia) ? 'hitster' : 'wlasna', rok: parseInt(c.rok, 10) || 0,
+    });
+    await sp.play(id, 0);
+    previewKey = k;
+  } catch (e) {
+    previewKey = null;
+    showError(e);
+  }
+  renderCardList();
+}
+
 $('#lista-kart').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-talia]');
   if (!li) return;
+  const playBtn = e.target.closest('[data-play]');
+  if (playBtn) {
+    const pc = data.customCards().find((x) => data.key(x.talia, x.numer) === data.key(li.dataset.talia, li.dataset.numer));
+    if (pc) togglePreview(pc, playBtn);
+    return;
+  }
   const c = data.customCards().find((x) => data.key(x.talia, x.numer) === data.key(li.dataset.talia, li.dataset.numer));
   if (c) openCardForm(c, { isNew: false, lockKey: data.isHitsterDeck(c.talia) });
 });

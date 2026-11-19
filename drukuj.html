@@ -72,7 +72,7 @@
         while (part.length < 12) part.push(null);
         // Przód
         html += '<div class="page"><div class="grid">' + part.map((c) => c
-          ? `<div class="c front"><div class="qr">${qrSvg(data.cardUrl(c.talia, c.numer))}</div><div class="lbl">${esc(c.talia)} · ${esc(c.numer)}</div></div>`
+          ? `<div class="c front"><div class="qr">${qrSvg(data.cardUrl(c.talia, c.numer))}</div></div>`
           : '<div class="c empty"></div>').join('') + '</div></div>';
         // Tył – kolumny w odbiciu lustrzanym, żeby po odwróceniu kartki trafić na właściwy przód
         const back = [];
