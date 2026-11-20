@@ -205,6 +205,17 @@ label.btn { display: block; }
 .results img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; }
 .results .t2 { color: var(--muted); font-size: .8rem; }
 
+/* Import playlisty */
+.import-list { max-height: 45vh; }
+.import-list li { grid-template-columns: auto 40px minmax(0, 1fr); cursor: pointer; }
+.import-list .t1 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-list .t2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-list li.dup .t2 { color: var(--accent-2); }
+.import-list li.off { opacity: .55; }
+.import-list input[type="checkbox"], .i-all input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.i-all { display: flex; gap: 8px; align-items: center; font-size: .9rem; cursor: pointer; }
+.i-head { margin-top: 6px; }
+
 /* ---------- Dialog ---------- */
 dialog {
   width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;

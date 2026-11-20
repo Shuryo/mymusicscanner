@@ -123,6 +123,7 @@
             <button id="btn-drukuj" class="btn btn-ghost" type="button">Drukuj talię</button>
           </div>
           <button id="btn-znajdz" class="btn btn-ghost" type="button">Znajdź utwory w Spotify</button>
+          <button id="btn-import" class="btn btn-ghost" type="button">Importuj playlistę Spotify</button>
           <p id="znajdz-info" class="hint-text" hidden></p>
           <input id="in-szukaj" type="search" placeholder="Szukaj w kartach…" aria-label="Szukaj">
           <ul id="lista-kart" class="list"></ul>
@@ -245,6 +246,36 @@
         <div class="row">
           <button id="f-anuluj" class="btn btn-ghost" type="button">Anuluj</button>
           <button id="f-zapisz" class="btn" type="submit">Zapisz</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ================= IMPORT PLAYLISTY ================= -->
+  <dialog id="dlg-import">
+    <form method="dialog" class="stack" id="form-import">
+      <h2>Import playlisty Spotify</h2>
+      <label class="field-label" for="i-link">Link do playlisty</label>
+      <div class="row">
+        <input id="i-link" placeholder="https://open.spotify.com/playlist/…" autocomplete="off" spellcheck="false">
+        <button id="i-wczytaj" class="btn btn-ghost" type="button">Wczytaj</button>
+      </div>
+      <label class="field-label" for="i-talia">Do talii</label>
+      <input id="i-talia" list="dl-talie" placeholder="np. imprezowa" autocomplete="off">
+      <p id="i-info" class="hint-text">Spotify → playlista → Udostępnij → Kopiuj link. Playlista musi być publiczna.</p>
+      <div id="i-lista-box" hidden>
+        <div class="row between i-head">
+          <label class="i-all"><input type="checkbox" id="i-wszystkie"> zaznacz wszystkie</label>
+          <span id="i-licznik" class="badge"></span>
+        </div>
+        <ul id="i-lista" class="results import-list"></ul>
+      </div>
+      <p id="i-blad" class="error" hidden></p>
+      <div class="row between">
+        <span></span>
+        <div class="row">
+          <button id="i-zamknij" class="btn btn-ghost" type="button">Zamknij</button>
+          <button id="i-dodaj" class="btn" type="button" disabled>Dodaj</button>
         </div>
       </div>
     </form>

@@ -51,6 +51,26 @@ async function sheetPost(payload) {
 
 export const saveCard = (karta, oryginal) => sheetPost({ akcja: 'zapisz', karta, oryginal });
 export const deleteCard = (talia, numer) => sheetPost({ akcja: 'usun', talia, numer });
+export const importCards = (talia, karty) => sheetPost({ akcja: 'importuj', talia, karty });
+
+// Utwory publicznej playlisty przez Apps Script (strona embed Spotify, max 100) – zapas, gdy API odmówi.
+export async function playlistFromSheet(link) {
+  const url = store.sheetUrl();
+  if (!url) throw new Error('Brak adresu bazy (Arkusz Google) – uzupełnij w Ustawieniach.');
+  const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'playlista=' + encodeURIComponent(link));
+  const j = await r.json().catch(() => ({ ok: false, blad: 'Baza nie odpowiedziała poprawnie. Wgraj nowy Code.gs (Nowa wersja wdrożenia).' }));
+  if (!j.ok) throw new Error(j.blad || 'Nie udało się wczytać playlisty.');
+  return j;
+}
+
+// ID utworów z wbudowanych talii Hitstera: id → „Nazwa talii #nr”
+export function hitsterIdIndex() {
+  const m = new Map();
+  for (const [sku, t] of Object.entries(hitster?.talie || {})) {
+    for (const [n, k] of Object.entries(t.karty)) if (k.s && !m.has(k.s)) m.set(k.s, `${t.nazwa} (${sku}) #${n}`);
+  }
+  return m;
+}
 
 // Zapisuje w bazie ID utworów znalezione automatycznie (bez hasła; tylko w puste pola).
 // lista: [{ talia, numer, spotify, okladka }]

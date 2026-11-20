@@ -643,6 +643,158 @@ $('#btn-znajdz').addEventListener('click', async () => {
   }
 });
 
+// ---------- Import playlisty Spotify ----------
+const dlgImport = $('#dlg-import');
+let importItems = [];
+
+// Odmiana: 1 karta, 2–4 karty, 5 kart (12–14 kart, 22 karty…)
+const plural = (n, one, few, many) => {
+  if (n === 1) return `1 ${one}`;
+  const d = n % 10, dd = n % 100;
+  return `${n} ${d >= 2 && d <= 4 && !(dd >= 12 && dd <= 14) ? few : many}`;
+};
+
+const playlistId = (s) => (String(s).match(/playlist[/:]([A-Za-z0-9]{22})/) || String(s).trim().match(/^([A-Za-z0-9]{22})$/) || [])[1];
+
+// Najpierw Web API (pełna playlista, z datami); gdy Spotify odmówi – strona embed przez Apps Script (max 100).
+async function loadPlaylist(link, onInfo) {
+  const id = playlistId(link);
+  if (!id) throw new Error('Wklej link do playlisty (Spotify → playlista → Udostępnij → Kopiuj link).');
+  try {
+    const p = await sp.playlist(id);
+    if (p.utwory.length) return { ...p, zrodlo: 'api' };
+  } catch (e) {
+    if (e.reason === 'NO_LOGIN') throw e;
+  }
+  onInfo('Spotify nie udostępnił playlisty przez API – pobieram ją inaczej…');
+  const j = await data.playlistFromSheet(id);
+  const out = new Array(j.utwory.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < j.utwory.length) {
+      const i = next++, u = j.utwory[i];
+      onInfo(`Sprawdzam lata wydania: ${i + 1} z ${j.utwory.length}…`);
+      try { out[i] = await sp.track(u.id); } catch { out[i] = { id: u.id, nazwa: u.tytul, wykonawcy: u.wykonawcy, data: '', okladka: '' }; }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  return { nazwa: j.nazwa, utwory: out, zrodlo: 'embed', moglaBycDluzsza: j.utwory.length >= 100 };
+}
+
+function buildImportItems(utwory) {
+  const hIds = data.hitsterIdIndex();
+  const own = data.customCards().filter((c) => !data.isHitsterDeck(c.talia));
+  const seen = new Set();
+  return utwory.map((t) => {
+    const tytul = cleanTitle(t.nazwa);
+    const wykonawca = t.wykonawcy.slice(0, 2).join(', ');
+    const tk = norm(tytul) + '|' + norm(mainArtist(wykonawca));
+    const ownHit = own.find((c) => c.spotify === t.id || norm(c.tytul) + '|' + norm(mainArtist(c.wykonawca)) === tk);
+    let dup = '';
+    if (seen.has(t.id) || seen.has(tk)) dup = 'powtórka na playliście';
+    else if (ownHit) dup = `już w bazie: ${ownHit.talia} #${ownHit.numer}`;
+    else if (hIds.has(t.id)) dup = `w Hitsterze: ${hIds.get(t.id)}`;
+    seen.add(t.id); seen.add(tk);
+    return { spotify: t.id, tytul, wykonawca, rok: yearOf(t.data) || '', okladka: t.okladka || '', okladkaMala: t.okladkaMala || t.okladka || '', dup, on: !dup };
+  });
+}
+
+function renderImport() {
+  const n = importItems.filter((x) => x.on).length;
+  $('#i-lista-box').hidden = !importItems.length;
+  $('#i-licznik').textContent = `${n} z ${importItems.length}`;
+  $('#i-wszystkie').checked = importItems.length > 0 && n === importItems.length;
+  $('#i-dodaj').disabled = !n;
+  $('#i-dodaj').textContent = n ? `Dodaj ${n}` : 'Dodaj';
+  $('#i-lista').innerHTML = importItems.map((x, i) => `
+    <li data-i="${i}" class="${x.dup ? 'dup' : ''}${x.on ? '' : ' off'}">
+      <input type="checkbox" ${x.on ? 'checked' : ''} aria-label="Dodaj">
+      ${x.okladkaMala ? `<img src="${esc(x.okladkaMala)}" alt="" loading="lazy">` : '<div class="thumb" style="width:40px;height:40px"></div>'}
+      <div style="min-width:0">
+        <div class="t1">${esc(x.wykonawca)} – ${esc(x.tytul)}</div>
+        <div class="t2">${esc(x.rok || 'brak roku')}${x.dup ? ' · ' + esc(x.dup) : ''}</div>
+      </div>
+    </li>`).join('');
+}
+
+$('#btn-import').addEventListener('click', () => {
+  if (!data.sheetEnabled()) { toast('Najpierw skonfiguruj bazę kart (Ustawienia → Zaawansowane).', true); return; }
+  if (!sp.isLoggedIn()) { toast('Najpierw połącz się ze Spotify.', true); goto('ustawienia'); return; }
+  const d = $('#sel-talia').value;
+  if (d && d !== '__hitster' && !$('#i-talia').value) $('#i-talia').value = d;
+  $('#i-blad').hidden = true;
+  renderImport();
+  dlgImport.showModal();
+});
+$('#i-zamknij').addEventListener('click', () => dlgImport.close());
+
+$('#i-wczytaj').addEventListener('click', async () => {
+  const btn = $('#i-wczytaj');
+  const info = $('#i-info');
+  $('#i-blad').hidden = true;
+  btn.disabled = true;
+  info.textContent = 'Wczytuję playlistę…';
+  try {
+    await data.loadHitster();
+    const p = await loadPlaylist($('#i-link').value, (t) => { info.textContent = t; });
+    importItems = buildImportItems(p.utwory);
+    const dups = importItems.filter((x) => x.dup).length;
+    info.textContent = `„${p.nazwa}”: ${plural(importItems.length, 'utwór', 'utwory', 'utworów')}`
+      + (dups ? `, odznaczone: ${dups} (już są w bazie lub w Hitsterze)` : '')
+      + '. Lata to daty wydania w Spotify – przy reedycjach i składankach mogą być późniejsze, sprawdź przed drukiem.'
+      + (p.moglaBycDluzsza ? ' Uwaga: tą drogą Spotify podaje najwyżej 100 utworów.' : '');
+    if (!$('#i-talia').value && p.nazwa) {
+      $('#i-talia').value = p.nazwa.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+    }
+  } catch (e) {
+    importItems = [];
+    info.textContent = '';
+    $('#i-blad').textContent = e.message || String(e);
+    $('#i-blad').hidden = false;
+  } finally {
+    btn.disabled = false;
+    renderImport();
+  }
+});
+
+$('#i-lista').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-i]');
+  if (!li) return;
+  const x = importItems[+li.dataset.i];
+  x.on = e.target.matches('input[type="checkbox"]') ? e.target.checked : !x.on;
+  renderImport();
+});
+$('#i-wszystkie').addEventListener('change', (e) => { importItems.forEach((x) => { x.on = e.target.checked; }); renderImport(); });
+
+$('#i-dodaj').addEventListener('click', async () => {
+  const talia = $('#i-talia').value.trim();
+  const blad = (t) => { $('#i-blad').textContent = t; $('#i-blad').hidden = false; };
+  if (!talia) { blad('Wpisz nazwę talii.'); $('#i-talia').focus(); return; }
+  if (data.isHitsterDeck(talia)) { blad('Nie można dodawać do talii Hitstera – wpisz własną nazwę.'); return; }
+  if (!store.settings().haslo) { blad('Wpisz hasło do bazy w Ustawieniach.'); return; }
+  const karty = importItems.filter((x) => x.on).map((x) => ({
+    spotify: x.spotify, tytul: x.tytul, wykonawca: x.wykonawca, rok: x.rok, okladka: x.okladka, uwagi: 'z playlisty – sprawdź rok',
+  }));
+  const btn = $('#i-dodaj');
+  btn.disabled = true;
+  btn.textContent = 'Zapisuję…';
+  try {
+    const r = await data.importCards(talia, karty);
+    dlgImport.close();
+    importItems = [];
+    $('#i-link').value = '';
+    toast(`Dodano ${plural(r.dodane, 'kartę', 'karty', 'kart')} do talii ${r.talia} (od #${r.od})`
+      + (r.pominiete ? `, pominięte: ${r.pominiete} (już były w tej talii)` : '') + '.');
+    await renderCards();
+    $('#sel-talia').value = r.talia;
+    renderCardList();
+  } catch (e) {
+    blad(e.message || String(e));
+    renderImport();
+  }
+});
+
 // Odsłuch karty z listy: gra utwór od początku w Spotify, drugi klik zatrzymuje.
 let previewKey = null;
 async function togglePreview(c, btn) {

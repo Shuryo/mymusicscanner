@@ -168,6 +168,33 @@ export async function search(q) {
   return (j?.tracks?.items || []).filter(Boolean).map(slimTrack);
 }
 
+// Wszystkie utwory playlisty przez Web API (z datą wydania). Rzuca błąd, gdy Spotify odmówi dostępu.
+export async function playlist(id) {
+  const meta = await api('/playlists/' + id + '?fields=name');
+  const out = [];
+  let path = '/playlists/' + id + '/items?limit=50';
+  try {
+    await api(path.replace('limit=50', 'limit=1'));
+  } catch (e) {
+    if (e.status !== 404) throw e;
+    path = '/playlists/' + id + '/tracks?limit=50'; // starsza nazwa endpointu
+  }
+  for (let guard = 0; path && guard < 40; guard++) {
+    const j = await api(path);
+    for (const it of j?.items || []) {
+      const t = it?.item || it?.track;
+      if (t && t.id && (t.type === 'track' || !t.type) && t.artists) {
+        const s = slimTrack(t);
+        if (!trackCache[t.id]) trackCache[t.id] = s;
+        out.push(s);
+      }
+    }
+    path = j?.next ? j.next.replace(API, '') : null;
+  }
+  saveCache('cacheUtwory', trackCache);
+  return { nazwa: meta?.name || '', utwory: out };
+}
+
 // Bez logowania: tytuł i okładka z publicznego oEmbed (bez wykonawcy/roku).
 export async function oembed(id) {
   const r = await fetch('https://open.spotify.com/oembed?url=' + encodeURIComponent('https://open.spotify.com/track/' + id));
